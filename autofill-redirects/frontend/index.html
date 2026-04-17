@@ -41,6 +41,7 @@
   <div class="wrap">
     <div class="card">
       <h1>Redirect Resolver</h1>
+      <p>By Praveen Kumar</p>p>
       <p>Upload an Excel file, choose the source and destination columns, and get a completed file back with final redirect URLs filled in.</p>
 
       <form id="resolverForm">
@@ -117,7 +118,7 @@
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       submitBtn.disabled = true;
-      setStatus("Uploading file and resolving redirects. This may take a little while for larger spreadsheets.");
+      setStatus("Uploading file and resolving redirects. Since this app is operating on free2pay technologies, this may take a little while. Especially for larger spreadsheets.");
 
       const formData = new FormData(form);
 
