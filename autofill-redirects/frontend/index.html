@@ -125,12 +125,15 @@
         const response = await fetch("/api/process", { method: "POST", body: formData });
         if (!response.ok) {
           let message = "Request failed.";
+          const rawText = await response.text();
+        
           try {
-            const data = await response.json();
+            const data = JSON.parse(rawText);
             message = data.detail || JSON.stringify(data);
           } catch {
-            message = await response.text();
+            message = rawText || "Request failed.";
           }
+        
           throw new Error(message);
         }
 
