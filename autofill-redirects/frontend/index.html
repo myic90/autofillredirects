@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirect Resolver</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #182230;
+      --muted: #667085;
+      --border: #d0d5dd;
+      --accent: #175cd3;
+      --accent-hover: #1849a9;
+      --danger: #b42318;
+      --success: #027a48;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }
+    .wrap { max-width: 980px; margin: 40px auto; padding: 0 20px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 4px 18px rgba(16, 24, 40, 0.06); }
+    h1 { margin: 0 0 8px; font-size: 2rem; }
+    p { color: var(--muted); margin-top: 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; font-size: 0.95rem; font-weight: 600; margin-bottom: 8px; }
+    input, select, button { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.95rem; }
+    input[type="file"] { padding: 10px; background: white; }
+    button { background: var(--accent); color: white; border: none; font-weight: 700; cursor: pointer; }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .status { margin-top: 16px; padding: 14px; border-radius: 12px; font-size: 0.95rem; border: 1px solid var(--border); background: #fcfcfd; color: var(--text); white-space: pre-wrap; }
+    .error { border-color: #fecdca; background: #fef3f2; color: var(--danger); }
+    .success { border-color: #abefc6; background: #ecfdf3; color: var(--success); }
+    .hint { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Redirect Resolver</h1>
+      <p>Upload an Excel file, choose the source and destination columns, and get a completed file back with final redirect URLs filled in.</p>
+
+      <form id="resolverForm">
+        <div class="grid">
+          <div class="full">
+            <label for="file">Excel file</label>
+            <input id="file" name="file" type="file" accept=".xlsx,.xls,.xlsm" required />
+            <div class="hint">Supported: .xlsx, .xls, .xlsm</div>
+          </div>
+
+          <div>
+            <label for="sheet_name">Worksheet name (optional)</label>
+            <input id="sheet_name" name="sheet_name" type="text" placeholder="Leave blank for first sheet" />
+          </div>
+
+          <div>
+            <label for="start_row">Start from row</label>
+            <input id="start_row" name="start_row" type="number" min="1" value="2" required />
+          </div>
+
+          <div>
+            <label for="source_mode">Source column type</label>
+            <select id="source_mode" name="source_mode">
+              <option value="letter">Column letter</option>
+              <option value="header">Header name</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="source_value">Source column value</label>
+            <input id="source_value" name="source_value" type="text" value="D" required />
+          </div>
+
+          <div>
+            <label for="output_mode">Output column type</label>
+            <select id="output_mode" name="output_mode">
+              <option value="letter">Column letter</option>
+              <option value="header">Header name</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="output_value">Output column value</label>
+            <input id="output_value" name="output_value" type="text" value="E" required />
+          </div>
+
+          <div>
+            <label for="timeout">Timeout per URL (seconds)</label>
+            <input id="timeout" name="timeout" type="number" min="1" value="15" required />
+          </div>
+
+          <div class="full">
+            <button id="submitBtn" type="submit">Run redirect check</button>
+            <div class="hint">The completed file downloads automatically when processing finishes.</div>
+          </div>
+        </div>
+      </form>
+
+      <div id="status" class="status">Ready.</div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("resolverForm");
+    const statusBox = document.getElementById("status");
+    const submitBtn = document.getElementById("submitBtn");
+
+    function setStatus(message, kind = "") {
+      statusBox.className = "status";
+      if (kind) statusBox.classList.add(kind);
+      statusBox.textContent = message;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submitBtn.disabled = true;
+      setStatus("Uploading file and resolving redirects. This may take a little while for larger spreadsheets.");
+
+      const formData = new FormData(form);
+
+      try {
+        const response = await fetch("/api/process", { method: "POST", body: formData });
+        if (!response.ok) {
+          let message = "Request failed.";
+          try {
+            const data = await response.json();
+            message = data.detail || JSON.stringify(data);
+          } catch {
+            message = await response.text();
+          }
+          throw new Error(message);
+        }
+
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="?([^"]+)"?/i);
+        const filename = match ? match[1] : "redirects_completed.xlsx";
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+
+        setStatus("Complete. Your finished file has been downloaded.", "success");
+      } catch (error) {
+        setStatus("Something went wrong:\n\n" + error.message, "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
